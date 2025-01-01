@@ -5,7 +5,7 @@ import { Game, Player, Card } from "../Game";
 export class GameRoom extends Room<GameState> {
     private game: Game;
     private timer: NodeJS.Timeout | null = null;
-    private readonly joinTimeout: number = 30;
+    private readonly joinTimeout: number = 3;
 
     constructor() {
         super();
@@ -13,8 +13,6 @@ export class GameRoom extends Room<GameState> {
         this.maxClients = 4;
         this.game = new Game();
     }
-
-
     onCreate(options: any) {
         this.game.gameInit.on((data) => {
             this.state.gamePhase = "initialized";
@@ -40,7 +38,6 @@ export class GameRoom extends Room<GameState> {
             if (player) {
                 const card = player.hand.find(c =>
                     c.suit === message.suit &&
-                    c.rank === message.rank &&
                     c.power === message.power
                 );
                 if (card) {
@@ -52,13 +49,16 @@ export class GameRoom extends Room<GameState> {
         this.onMessage("claimTricks", (client, message) => {
             const playerId = this.getPlayerIndex(client.sessionId);
             const player = this.game.players[playerId];
+            console.log('claimTricks', message, playerId);
             if (player) {
-                player.claimTricks(message.claim);
+
+                this.game.claimTricks.submitHumanClaim(message.claim);
             }
+
         });
 
         this.onMessage("selectTrump", (client, message) => {
-            const playerId = this.getPlayerIndex(client.sessionId);
+            const playerId = client.sessionId
             if (playerId === this.state.claimWinnerId) {
                 this.game.claimTricks.submitHumanTrumpSuit(message.suit);
             }
@@ -66,27 +66,40 @@ export class GameRoom extends Room<GameState> {
     }
 
     onJoin(client: Client) {
-        const playerIndex = this.clients.length - 1;
+        //const playerIndex = this.clients.length - 1;
+
         const player = new SchemaPlayer(
-            playerIndex,
-            (playerIndex + 2) % 4,
+            client.sessionId,
+            "",
             true,
-            false
+
+            this.game.players.length
+
         );
         this.state.players.set(client.sessionId, player);
         const playerId = client.sessionId;
 
+        this.game.addPlayer(playerId, "", true, this.game.players.length);
+        this.syncGameState();
+
         if (this.game.players.length === 4) {
-            //this.game.startGame();
+            this.assignPlayerPartners();
+            this.state.gamePhase = "initialized";
+            this.game.startGame();
         } else {
             this.startJoinTimer();
         }
 
         // Update the game's player to be human
-        this.game.players[playerIndex].isHuman = true;
+        //this.game.players[playerIndex].isHuman = true;
 
-        if (this.clients.length === 4) {
-            this.game.startGame();
+        // if (this.clients.length === 4) {
+        //     this.game.startGame();
+        // }
+    }
+    assignPlayerPartners() {
+        for (let i = 0; i < this.game.players.length; i++) {
+            this.game.players[i].partnerId = this.game.players[(i + 1) % this.game.players.length].id;
         }
     }
     private startJoinTimer() {
@@ -95,12 +108,17 @@ export class GameRoom extends Room<GameState> {
         }
 
         this.timer = setTimeout(() => {
-            if (this.game.players.length >= 2) {
+            if (this.game.players.length >= 1) {
                 // Fill remaining slots with AI players
                 while (this.game.players.length < 4) {
                     const aiId = `ai_${this.game.players.length}`;
+                    const aiPlayer = new SchemaPlayer(aiId, "AI", false, this.game.players.length);
+                    this.state.players.set(aiId, aiPlayer);
                     this.game.addPlayer(aiId, "AI", false, this.game.players.length);
                 }
+                this.state.gamePhase = "initialized";
+                this.game.startGame();
+                this.syncGameState();
                 //this.startGame();
             }
         }, this.joinTimeout * 1000);
@@ -117,7 +135,7 @@ export class GameRoom extends Room<GameState> {
         // Sync players
         this.game.players.forEach((gamePlayer, index) => {
             const sessionId = Array.from(this.state.players.entries())
-                .find(([_, player]) => player.id === index)?.[0];
+                .find(([_, player]) => player.index === index)?.[0];
 
             if (sessionId) {
                 const schemaPlayer = this.state.players.get(sessionId);
@@ -125,6 +143,9 @@ export class GameRoom extends Room<GameState> {
                     // Sync hand
                     schemaPlayer.hand.clear();
                     gamePlayer.hand.forEach(card => {
+                        let schemacard = this.convertToSchemaCard(card);
+                        schemacard.isPlayed = card.isPlayed;
+                        schemacard.belongsTo = card.belongsTo;
                         schemaPlayer.hand.push(this.convertToSchemaCard(card));
                     });
 
@@ -148,6 +169,7 @@ export class GameRoom extends Room<GameState> {
         });
 
         // Sync game state
+        this.state.claimWinnerId = this.game.claimWinner?.id || "";
         this.state.currentPlayerIndex = this.game.currentPlayerIndex || 0;
         this.state.trumpSuit = this.game.trumpSuit || "";
     }
@@ -162,6 +184,15 @@ export class GameRoom extends Room<GameState> {
     }
 
     private getPlayerIndex(sessionId: string): number {
-        return this.state.players.get(sessionId)?.id ?? -1;
+        return this.state.players.get(sessionId)?.index || 0
+    };
+
+
+}
+class AIClient implements Partial<Client> {
+    sessionId: string;
+
+    constructor(sessionId: string) {
+        this.sessionId = sessionId;
     }
 }

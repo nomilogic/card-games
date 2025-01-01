@@ -5,7 +5,7 @@ export class Card extends Schema {
     @type("string") rank: string;
     @type("number") power: number;
     @type("boolean") isPlayed: boolean;
-    @type("number") belongsTo: number;
+    @type("string") belongsTo: string | null;
     @type("string") symbol: string;
 
     constructor(suit: string, rank: string, power: number, symbol: string) {
@@ -14,14 +14,15 @@ export class Card extends Schema {
         this.rank = rank;
         this.power = power;
         this.isPlayed = false;
-        this.belongsTo = -1;
+        this.belongsTo = "";
         this.symbol = symbol;
     }
 }
 
 export class Player extends Schema {
-    @type("number") id: number;
-    @type("number") partnerId: number;
+    @type("string") id: string;
+    @type("number") index: number;
+    @type("string") partnerId: string;
     @type("boolean") isHuman: boolean;
     @type("boolean") cheatMode: boolean;
     @type("number") tricksWon: number;
@@ -30,8 +31,9 @@ export class Player extends Schema {
     @type([Card]) tricksWonCards: ArraySchema<Card>;
     @type([Card]) playedCards: ArraySchema<Card>;
 
-    constructor(id: number, partnerId: number, isHuman: boolean = false, cheatMode: boolean = false) {
+    constructor(id: string, partnerId: string, isHuman: boolean = false, index: number = -1, cheatMode: boolean = false) {
         super();
+        this.index = index;
         this.id = id;
         this.partnerId = partnerId;
         this.isHuman = isHuman;
@@ -51,7 +53,7 @@ export class GameState extends Schema {
     @type([Card]) currentTrickCards = new ArraySchema<Card>();
     @type("number") currentPlayerIndex: number;
     @type("string") gamePhase: string;
-    @type("number") claimWinnerId: number;
+    @type("string") claimWinnerId: string;
     @type("number") highestClaim: number;
     @type("number") consecutivePasses: number;
 
@@ -60,7 +62,7 @@ export class GameState extends Schema {
         this.trumpSuit = "";
         this.currentPlayerIndex = 0;
         this.gamePhase = "waiting";
-        this.claimWinnerId = -1;
+        this.claimWinnerId = "";
         this.highestClaim = 0;
         this.consecutivePasses = 0;
     }

@@ -136,6 +136,7 @@ class Player {
     this.playedCards = [];
     this.isHuman = isHuman;
     this.cheatMode = cheatMode;
+    this.index = index;
   }
   get hand(): Card[] {
     return this._hand;
@@ -216,9 +217,11 @@ class Player {
       return this.normalAiPlayCard(trick, trumpSuit, allPlayers, revealedCards, allCards);
     }
   }
+
   async claimTricks(totalTricks: number): Promise<void> {
     if (this.isHuman) {
       this.tricksClaimed = totalTricks;
+
       return Promise.resolve();
     } else {
       this.tricksClaimed = this.aiClaimTricks();
@@ -653,6 +656,7 @@ class ClaimTricks {
   private humanClaimPromise: Promise<number> | null;
   resolveHumanClaim: ((claim: number) => void) | null;
   resolveHumanTrumpSuit?: (value: string) => void;
+  claimWinnerId: string | undefined;
 
   constructor(game: Game) {
     this.game = game;
@@ -700,6 +704,7 @@ class ClaimTricks {
         if (playerClaim > this.highestClaim) {
           this.highestClaim = playerClaim;
           this.claimWinnerIndex = claimers[this.currentPlayerIndex];
+          this.claimWinnerId = currentPlayer.id;
           currentPlayer.tricksClaimed = playerClaim;
           this.currentPlayerIndex = this.currentPlayerIndex + 1;
         }
@@ -840,6 +845,7 @@ class ClaimTricks {
   // Method to be called from UI when human player submits their trump suit
   submitHumanTrumpSuit(suit: string): void {
     if (this.resolveHumanTrumpSuit && this.game.deck.suits.includes(suit)) {
+      console.log("trump suit", suit);
       this.resolveHumanTrumpSuit(suit);
       this.resolveHumanTrumpSuit = undefined;
     } else {
@@ -929,12 +935,12 @@ class Game {
     console.log(this.players, this.scoreBoard);
   }
   addPlayer(id: string, name: string, isHuman: boolean = false, index: number = -1): void {
-    this.players.push(new Player(id, "", false));
+    this.players.push(new Player(id, "", isHuman, index));
 
   }
   onPlayersJoined() {
     if (this.players.length === 4) {
-      this.startGame();
+      // this.startGame();
     }
 
   }
@@ -1025,6 +1031,7 @@ class Game {
     this.deck.distribute(this.players);
     this.trumpSuit = this.deck.suits[Math.floor(Math.random() * 4)];
     console.log(`Trump suit: ${this.trumpSuit}`);
+    console.log(this.players);
     await this.claimTricks.performTrickClaiming();
 
     // Emit initial game state
