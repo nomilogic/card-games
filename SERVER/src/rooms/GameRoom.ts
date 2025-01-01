@@ -4,6 +4,8 @@ import { Game, Player, Card } from "../Game";
 
 export class GameRoom extends Room<GameState> {
     private game: Game;
+    private timer: NodeJS.Timeout | null = null;
+    private readonly joinTimeout: number = 30;
 
     constructor() {
         super();
@@ -11,6 +13,7 @@ export class GameRoom extends Room<GameState> {
         this.maxClients = 4;
         this.game = new Game();
     }
+
 
     onCreate(options: any) {
         this.game.gameInit.on((data) => {
@@ -35,9 +38,9 @@ export class GameRoom extends Room<GameState> {
             const playerId = this.getPlayerIndex(client.sessionId);
             const player = this.game.players[playerId];
             if (player) {
-                const card = player.hand.find(c => 
-                    c.suit === message.suit && 
-                    c.rank === message.rank && 
+                const card = player.hand.find(c =>
+                    c.suit === message.suit &&
+                    c.rank === message.rank &&
                     c.power === message.power
                 );
                 if (card) {
@@ -71,6 +74,13 @@ export class GameRoom extends Room<GameState> {
             false
         );
         this.state.players.set(client.sessionId, player);
+        const playerId = client.sessionId;
+
+        if (this.game.players.length === 4) {
+            //this.game.startGame();
+        } else {
+            this.startJoinTimer();
+        }
 
         // Update the game's player to be human
         this.game.players[playerIndex].isHuman = true;
@@ -79,7 +89,22 @@ export class GameRoom extends Room<GameState> {
             this.game.startGame();
         }
     }
+    private startJoinTimer() {
+        if (this.timer) {
+            clearTimeout(this.timer);
+        }
 
+        this.timer = setTimeout(() => {
+            if (this.game.players.length >= 2) {
+                // Fill remaining slots with AI players
+                while (this.game.players.length < 4) {
+                    const aiId = `ai_${this.game.players.length}`;
+                    this.game.addPlayer(aiId, "AI", false, this.game.players.length);
+                }
+                //this.startGame();
+            }
+        }, this.joinTimeout * 1000);
+    }
     onLeave(client: Client) {
         const playerIndex = this.getPlayerIndex(client.sessionId);
         if (playerIndex !== -1) {
@@ -93,7 +118,7 @@ export class GameRoom extends Room<GameState> {
         this.game.players.forEach((gamePlayer, index) => {
             const sessionId = Array.from(this.state.players.entries())
                 .find(([_, player]) => player.id === index)?.[0];
-            
+
             if (sessionId) {
                 const schemaPlayer = this.state.players.get(sessionId);
                 if (schemaPlayer) {

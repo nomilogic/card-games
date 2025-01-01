@@ -9,6 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@colyseus/auth": "^0.15.12",
     "@colyseus/core": "^0.15.0",
     "@colyseus/monitor": "^0.15.0",
     "@colyseus/playground": "^0.15.16",

@@ -21,7 +21,7 @@ class Card {
   rank: string;
   power: number; // Power attribute for fast comparison
   isPlayed: boolean; // Property to track if the card has been played
-  belongsTo: number | null; // Property to track which player the card belongs to
+  belongsTo: string | null; // Property to track which player the card belongs to
   symbol: string; // Property to track which player the card belongs to create cards symbols for e.g
   constructor(
     suit: string,
@@ -100,7 +100,7 @@ class Deck {
     this.shuffle();
     for (let i = 0; i < this.cards.length; i++) {
       players[i % 4].hand.push(this.cards[i]);
-      this.cards[i].belongsTo = i % 4; // Track which player the card belongs to
+      this.cards[i].belongsTo = players[i % 4].id; // Track which player the card belongs to
     }
     players.forEach((player) => player.sortHand('both', true));
   }
@@ -108,8 +108,8 @@ class Deck {
 
 // Player class to represent each player (AI or Human)
 class Player {
-  id: number;
-  partnerId: number;
+  id: string;
+  partnerId: string;
   private _hand!: Card[];
   tricksWonCards: Card[];
   tricksWon: number;
@@ -118,12 +118,14 @@ class Player {
   cheatMode: boolean;
   humanPlayPromise!: Promise<Card>;
   tricksClaimed: number = -1;
+  index: number = -1;
 
   resolveHumanPlay: ((card: Card) => void) | null = null;
   constructor(
-    id: number,
-    partnerId: number,
+    id: string,
+    partnerId: string,
     isHuman: boolean = false,
+    index: number = -1,
     cheatMode: boolean = false
   ) {
     this.id = id;
@@ -179,8 +181,8 @@ class Player {
 
       // If suits are the same or not being sorted, compare ranks
       if (comparison === 0 && (criteria === 'power' || criteria === 'both')) {
-        const rankA:number = a.power;
-        const rankB:number = b.power;
+        const rankA: number = a.power;
+        const rankB: number = b.power;
         comparison = rankA - rankB;
       }
 
@@ -456,10 +458,7 @@ class Player {
       if (suitCards.length > 0) {
         // Mandatory to play a card of the leading suit
         selectedCard = this.chooseBestCard(
-          suitCards,
-          trumpSuit,
-          revealedCards,
-          allPlayers,
+          suitCards
         );
       } else {
         // If no suit cards, proceed with normal trick response
@@ -483,7 +482,7 @@ class Player {
     revealedCards: Card[],
     allPlayers: Player[]
   ): Card {
-    return this.chooseBestCard(this.hand, trumpSuit, revealedCards, allPlayers);
+    return this.chooseBestCard(this.hand);
   }
 
   cheatAiPlayCard(
@@ -520,7 +519,7 @@ class Player {
     allPlayers: Player[],
     revealedCards: Card[]
   ): Card {
-    return this.chooseBestCard(this.hand, trumpSuit, revealedCards, allPlayers);
+    return this.chooseBestCard(this.hand);
   }
 
   respondToTrick(
@@ -560,10 +559,7 @@ class Player {
 
     if (validCards.length > 0) {
       let bestcard = this.chooseBestCard(
-        validCards,
-        trumpSuit,
-        revealedCards,
-        allPlayers
+        validCards
       );
       if (leadingCard.suit === trumpSuit && leadingSuit !== trumpSuit) {
         return this.chooseWorstCard(validCards);
@@ -609,102 +605,10 @@ class Player {
       return this.chooseWorstCard(suitWithMostCards);
     }
   }
-  chooseBestCard(cards: Card[], trumpSuit: string, revealedCards: Card[], allPlayers: Player[]): Card {
-    if (this.cheatMode && allPlayers) {
-      return this.advancedCardSelection(cards, trumpSuit, revealedCards, allPlayers);
-    }
+  chooseBestCard(cards: Card[]): Card {
     return cards.reduce((bestCard, card) => card.power > bestCard.power ? card : bestCard);
   }
-  chooseBestCard2(
-    cards: Card[],
-    trumpSuit: string,
-    revealedCards: Card[],
-    allPlayers: Player[]
-  ): Card {
-    if (this.cheatMode && allPlayers) {
-      return this.advancedCardSelection(
-        cards,
-        trumpSuit,
-        revealedCards,
-        allPlayers
-      );
-    }
 
-    // If no cards have been played yet, play the highest card
-    if (revealedCards.length === 0) {
-      return cards.reduce((bestCard, card) =>
-        card.power > bestCard.power ? card : bestCard
-      );
-    }
-
-    // Find the maximum power of played cards and its suit
-    const maxPlayedCard = revealedCards.reduce((highest, card) =>
-      card.power > highest.power ? card : highest
-    );
-
-    // Determine if we can win the trick
-    const canWinTrick = cards.some(
-      (card) =>
-        card.power > maxPlayedCard.power &&
-        (card.suit === maxPlayedCard.suit || card.suit === trumpSuit)
-    );
-
-    // return cards.reduce((bestCard, card) => card.power > bestCard.power ? card : bestCard);
-
-    return cards.reduce(
-      (winningCard, card) => {
-        if (
-          card.power > maxPlayedCard.power &&
-          (card.suit === maxPlayedCard.suit || card.suit === trumpSuit)
-        ) {
-          return card.power < winningCard.power ? card : winningCard;
-        }
-        return winningCard;
-      }
-    );
-
-    if (canWinTrick) {
-      // If we can win, play the lowest card that still wins the trick
-      return cards.reduce(
-        (winningCard, card) => {
-          if (
-            card.power > maxPlayedCard.power &&
-            (card.suit === maxPlayedCard.suit || card.suit === trumpSuit)
-          ) {
-            return card.power < winningCard.power ? card : winningCard;
-          }
-          return winningCard;
-        },
-        { power: Infinity } as Card
-      );
-    } else {
-      // If we can't win, play the lowest card
-      return cards.reduce((lowest, card) =>
-        card.power < lowest.power ? card : lowest
-      );
-    }
-  }
-  advancedCardSelection(
-    cards: Card[],
-    trumpSuit: string,
-    revealedCards: Card[],
-    allPlayers: Player[]
-  ): Card {
-    // Implement logic to choose the best card based on all players' cards and revealed cards
-    let bestCard = cards[0];
-    let highestValue = -1;
-
-    for (let card of cards) {
-      let cardValue = card.power;
-      // Apply additional logic to weigh card values based on revealed cards and opponent strategies
-      if (cardValue > highestValue) {
-        highestValue = cardValue;
-        bestCard = card;
-      }
-    }
-
-    return bestCard;
-  }
 
   chooseWorstCard(cards: Card[]): Card {
     return cards.reduce((worstCard: Card, card: Card) => {
@@ -767,7 +671,7 @@ class ClaimTricks {
 
     let claimers = this.game.players
       .filter((player) => player.tricksClaimed != 0)
-      .map((player) => player.id);
+      .map((player) => player.index);
     console.log(`Claimers: ${claimers}`);
 
     while (claimers.length > 1) {
@@ -985,7 +889,7 @@ class ClaimTricks {
 
 class Game {
   deck: Deck;
-  players: Player[];
+  players: Player[] = [];
   trumpSuit: string | undefined;
   claimWinner: Player | null;
   revealedCards: Card[];
@@ -998,12 +902,13 @@ class Game {
 
   constructor(players?: { id: string, name: string }[]) {
     this.deck = new Deck();
-    this.players = [
-      new Player(0, 2, true), // Player 0 (human)
-      new Player(1, 3, false, true), // Player 1 (AI)
-      new Player(2, 0, false), // Player 2 (AI)
-      new Player(3, 1, false, true), // Player 3 (AI)
-    ];
+
+    /* this.players = [
+      new Player(0, 2, true, 0), // Player 0 (human)
+      new Player(1, 3, false, 1, true), // Player 1 (AI)
+      new Player(2, 0, false, 2), // Player 2 (AI)
+      new Player(3, 1, false, 3, true), // Player 3 (AI)
+    ]; */
 
     // If players are provided, update the isHuman status
     if (players) {
@@ -1019,11 +924,20 @@ class Game {
     this.revealedCards = [];
     this.claimTricks = new ClaimTricks(this);
     this.scoreBoard = new ScoreBoard();
-    this.players.forEach((player) => this.scoreBoard.initializePlayerScore(player.id));
+    this.players.forEach((player) => this.scoreBoard.initializePlayerScore(player.index));
 
     console.log(this.players, this.scoreBoard);
   }
+  addPlayer(id: string, name: string, isHuman: boolean = false, index: number = -1): void {
+    this.players.push(new Player(id, "", false));
 
+  }
+  onPlayersJoined() {
+    if (this.players.length === 4) {
+      this.startGame();
+    }
+
+  }
   setTrumpSuit(suit: string): void {
     this.trumpSuit = suit;
   }
@@ -1049,7 +963,7 @@ class Game {
   }>();
 
   trickCompleted = new EventEmitter<{
-    winnerId: number;
+    winnerId: string;
     trick: Trick;
   }>();
 
@@ -1061,7 +975,7 @@ class Game {
   }>();
 
   gameOver = new EventEmitter<{
-    winnerId: number;
+    winnerId: string;
   }>();
 
   humanClaim = new EventEmitter<{
@@ -1213,7 +1127,7 @@ class Game {
 
   evaluateTrickWinner(trick: Trick): Player {
     const leadingSuit = trick.cards[0].suit;
-    let winningCard:Card = trick.cards[0];
+    let winningCard: Card = trick.cards[0];
 
     // First, check for trump cards
     const trumpTricks = trick.cards.filter(
@@ -1240,8 +1154,8 @@ class Game {
     let team2Score = this.players[1].tricksWon + this.players[3].tricksWon;
     console.log(`Team 1 Score: ${team1Score}`);
     console.log(`Team 2 Score: ${team2Score}`);
-    let Team = this.claimWinner?.id == 0 || this.claimWinner?.id == 2 ? 1 : 2;
-    this.scoreBoard.updateRoundScore(Team, this.players[this.claimWinner?.id || 0].tricksClaimed, Team === 1 ? team1Score : team2Score);
+    let Team = this.claimWinner?.index == 0 || this.claimWinner?.index == 2 ? 1 : 2;
+    this.scoreBoard.updateRoundScore(Team, this.players[this.claimWinner?.index || 0].tricksClaimed, Team === 1 ? team1Score : team2Score);
     console.log(`Team 1 Score: ${team1Score} | Team 2 Score: ${team2Score}`);
     if (team1Score > team2Score) {
       console.log(`Team 1 wins the game!`);
@@ -1259,13 +1173,13 @@ class Game {
 interface team {
   id: number;
   score: number;
-  players: Array<{ id: number, tricksWon: number }>;
+  players: Array<{ index: number, tricksWon: number }>;
 }
 class ScoreBoard {
 
   private scores: Map<number, number>;
-  private team1: team = { id: 1, score: 0, players: [{ id: 0, tricksWon: 0 }, { id: 2, tricksWon: 0 }] };
-  private team2: team = { id: 2, score: 0, players: [{ id: 1, tricksWon: 0 }, { id: 3, tricksWon: 0 }] };
+  private team1: team = { id: 1, score: 0, players: [{ index: 0, tricksWon: 0 }, { index: 2, tricksWon: 0 }] };
+  private team2: team = { id: 2, score: 0, players: [{ index: 1, tricksWon: 0 }, { index: 3, tricksWon: 0 }] };
   private teams: Array<Array<team>> = [];
   private teamScores: Map<number, number>;
   private roundScores: Array<{ team1: number, team2: number }>;
@@ -1282,8 +1196,9 @@ class ScoreBoard {
     this.teamScores.set(1, 0); // Team 1 (players 0 and 2)
     this.teamScores.set(2, 0); // Team 2 (players 1 and 3)
   }
-  updateScore(playerId: number) {
-    switch (playerId) {
+  updateScore(playerIndex: number, playerId: string) {
+
+    switch (playerIndex) {
       case 0:
         this.team1.players[0].tricksWon++;
         break;
@@ -1298,8 +1213,8 @@ class ScoreBoard {
         break;
     }
   }
-  initializePlayerScore(playerId: number) {
-    this.scores.set(playerId, 0);
+  initializePlayerScore(playerIndex: number) {
+    this.scores.set(playerIndex, 0);
   }
 
   updateRoundScore(claimingTeam: number, claimedTricks: number, tricksWon: number) {
@@ -1398,10 +1313,10 @@ class ScoreBoard {
 // Trick interface to store the card and player who played it
 interface Trick {
   cards: Card[];
-  winnerId?: number;
+  winnerId?: string;
 }
 class OtherPlayerStrategyInfo {
-  id: number;
+  id: string;
   tricksWon: number;
   outOfSuits: Map<string, boolean>;  // Track which suits player is out of
   highCardCount: Map<string, number>; // Count of high cards (A, K, Q) per suit
@@ -1413,7 +1328,7 @@ class OtherPlayerStrategyInfo {
   lastPlayedPower: number;  // Power of last played card
   isPartner: boolean;    // Whether this player is partner
 
-  constructor(id: number, tricksWon: number, isPartner: boolean = false) {
+  constructor(id: string, tricksWon: number, isPartner: boolean = false) {
     this.id = id;
     this.tricksWon = tricksWon;
     this.isPartner = isPartner;
@@ -1462,4 +1377,4 @@ class OtherPlayerStrategyInfo {
 }
 // Running the game
 
-export { Game, Player, Trick, Card, Deck, ScoreBoard,ClaimTricks, OtherPlayerStrategyInfo};
+export { Game, Player, Trick, Card, Deck, ScoreBoard, ClaimTricks, OtherPlayerStrategyInfo };
