@@ -5,10 +5,10 @@ export class Card extends Schema {
     @type("string") rank: string;
     @type("number") power: number;
     @type("boolean") isPlayed: boolean;
-    @type("string") belongsTo: string | null;
+    @type("string") belongsTo: string = "";
     @type("string") symbol: string;
 
-    constructor(suit: string, rank: string, power: number, symbol: string) {
+    constructor(suit: string, rank: string, power: number, symbol: string, belongsTo: string = "") {
         super();
         this.suit = suit;
         this.rank = rank;

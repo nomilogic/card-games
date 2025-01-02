@@ -21,7 +21,7 @@ class Card {
   rank: string;
   power: number; // Power attribute for fast comparison
   isPlayed: boolean; // Property to track if the card has been played
-  belongsTo: string | null; // Property to track which player the card belongs to
+  belongsTo: string; // Property to track which player the card belongs to
   symbol: string; // Property to track which player the card belongs to create cards symbols for e.g
   constructor(
     suit: string,
@@ -33,7 +33,7 @@ class Card {
     this.rank = rank;
     this.power = power;
     this.isPlayed = false;
-    this.belongsTo = null;
+    this.belongsTo = "";
     this.symbol = symbol;
   }
 
@@ -99,8 +99,9 @@ class Deck {
   distribute(players: Player[]): void {
     this.shuffle();
     for (let i = 0; i < this.cards.length; i++) {
-      players[i % 4].hand.push(this.cards[i]);
-      this.cards[i].belongsTo = players[i % 4].id; // Track which player the card belongs to
+      let player = players[i % 4];
+      this.cards[i].belongsTo = player.id; // Track which player the card belongs to
+      player.hand.push(this.cards[i]);
     }
     players.forEach((player) => player.sortHand('both', true));
   }
@@ -1051,6 +1052,7 @@ class Game {
       // await this.checkStates();
       //this.nextTurn();
     } */
+    return Promise.resolve()
   }
   startInterval(frames: number): void {
     const interval = 1000 / frames;

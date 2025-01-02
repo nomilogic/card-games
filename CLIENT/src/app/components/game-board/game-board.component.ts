@@ -7,18 +7,23 @@ import { Card } from '../../models/card.model';
   template: `
     <div class="game-board">
       <div class="opponent-hand">
-        <app-player-hand [cards]="opponentCards" [isOpponent]="true"></app-player-hand>
+        <app-player-hand [cards]="opponentCards" [isOpponent]="false"></app-player-hand>
       </div>
       
       <div class="play-area">
-        <div class="deck" (click)="drawCard()" [class.disabled]="!canDraw">
+        <!-- <div class="deck" (click)="drawCard()" [class.disabled]="!canDraw">
           <div class="card card-back">
             <span>{{ deckSize }} cards left</span>
           </div>
-        </div>
+        </div> -->
         
-        <div class="played-cards">
-          <app-card *ngIf="lastPlayedCard" [card]="lastPlayedCard"></app-card>
+        <div class="played-cards-area">
+          <app-animated-card
+            *ngFor="let card of playedCards; let i = index"
+            [card]="card"
+            [startPosition]="getStartPosition(i)"
+            [isFlipped]="false">
+          </app-animated-card>
         </div>
       </div>
       
@@ -32,7 +37,7 @@ import { Card } from '../../models/card.model';
       
       <div class="controls">
         <button (click)="startGame()" *ngIf="!gameStarted">Start Game</button>
-        <button (click)="endTurn()" *ngIf="gameStarted && isPlayerTurn">End Turn</button>
+        <!-- <button (click)="endTurn()" *ngIf="gameStarted && isPlayerTurn">End Turn</button> -->
       </div>
     </div>
   `,
@@ -83,50 +88,74 @@ import { Card } from '../../models/card.model';
     button:hover {
       background: #45a049;
     }
+    
+    .played-cards-area {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 300px;
+      height: 300px;
+    }
   `]
 })
 export class GameBoardComponent implements OnInit {
   playerCards: Card[] = [];
   opponentCards: Card[] = [];
   lastPlayedCard?: Card;
+  playedCards: Card[] = [];
   gameStarted = false;
   isPlayerTurn = false;
   deckSize = 52;
   canDraw = false;
 
-  constructor(private gameService: GameService) {}
+  constructor(private gameService: GameService) { }
 
   ngOnInit() {
     this.gameService.gameState$.subscribe(state => {
-      this.playerCards = state.playerHand;
-      this.opponentCards = state.opponentHand;
-      this.lastPlayedCard = state.lastPlayedCard;
-      this.gameStarted = state.gameStarted;
-      this.isPlayerTurn = state.isPlayerTurn;
-      this.deckSize = state.deckSize;
-      this.canDraw = state.canDraw;
+      const currentPlayer = Array.from(state.players.values()).find(p => p.isHuman);
+      const opponent = Array.from(state.players.values()).find(p => !p.isHuman);
+
+      if (currentPlayer) {
+        this.playerCards = currentPlayer.hand;
+      }
+      if (opponent) {
+        this.opponentCards = opponent.hand;
+      }
+      this.lastPlayedCard = state.currentTrickCards[state.currentTrickCards.length - 1];
+      this.playedCards = state.currentTrickCards;
+      this.gameStarted = state.gamePhase !== 'waiting';
+      this.isPlayerTurn = state.currentPlayerIndex === currentPlayer?.index;
+      this.deckSize = 52 - Array.from(state.players.values()).reduce((total, player) => total + player.hand.length, 0);
+      this.canDraw = state.gamePhase === 'playing' && this.isPlayerTurn;
     });
+  }
+
+  getStartPosition(index: number): 'bottom' | 'left' | 'top' | 'right' {
+    const positions: ('bottom' | 'left' | 'top' | 'right')[] = ['bottom', 'left', 'top', 'right'];
+    return positions[index % 4];
   }
 
   startGame() {
     this.gameService.startGame();
   }
 
-  drawCard() {
+  /* drawCard() {
     if (this.canDraw) {
       this.gameService.drawCard();
     }
-  }
+  } */
 
   playCard(card: Card) {
     if (this.isPlayerTurn) {
+      this.playedCards = [...this.playedCards, card];
       this.gameService.playCard(card);
     }
   }
 
-  endTurn() {
-    if (this.isPlayerTurn) {
-      this.gameService.endTurn();
-    }
-  }
+  // endTurn() {
+  //   if (this.isPlayerTurn) {
+  //     this.gameService.endTurn();
+  //   }
+  // }
 }

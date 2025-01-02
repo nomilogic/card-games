@@ -10,15 +10,18 @@ import { Card } from '../../models/card.model';
       [class.selectable]="selectable"
       (click)="onCardClick()">
       <ng-container *ngIf="!faceDown">
-        <div class="card-value" [class.red]="card.isRed">{{ card.value }}</div>
-        <div class="card-suit" [class.red]="card.isRed">{{ card.suit }}</div>
+        <div class="card-value" style="align-self: flex-start; margin-left: 5px;" [style.margin-left]="card.rank === '10' ? '5px' : '10px'" [style.margin-right]="card.suit === 'Spades' ? '10px' : '0'" [class.red]="card.suit === 'Hearts' || card.suit === 'Diamonds'">{{ card.rank }}</div>
+        <div class="card-value" style="align-self: flex-start; margin-left: 10px;" [class.red]="card.suit === 'Hearts' || card.suit === 'Diamonds'">{{ card.symbol }}</div>
+        <div class="card-suit" [class.red]="card.suit === 'Hearts' || card.suit === 'Diamonds'">{{ card.symbol }}</div>
+        <div class="card-value" style="align-self: flex-end; margin-right: 5px; rotate: 180deg;" [class.red]="card.suit === 'Hearts' || card.suit === 'Diamonds'">{{ card.symbol }}</div>
+        <div class="card-value" style="align-self: flex-end; margin-right: 5px; rotate: 180deg;" [class.red]="card.suit === 'Hearts' || card.suit === 'Diamonds'">{{ card.rank }}</div>
+
       </ng-container>
     </div>
   `,
   styles: [`
     .card {
-      width: 100px;
-      height: 140px;
+    
       background: white;
       border-radius: 10px;
       box-shadow: 0 2px 5px rgba(0,0,0,0.2);
@@ -28,10 +31,12 @@ import { Card } from '../../models/card.model';
       align-items: center;
       position: relative;
       transition: transform 0.2s;
+      line-height: 1;
+      letter-spacing: 1px;
     }
     
     .card.selectable:hover {
-      transform: translateY(-10px);
+      transform: translateY(-10px) rotate(180deg);
       cursor: pointer;
     }
     

@@ -1,17 +1,29 @@
 import { Injectable } from '@angular/core';
+import { Client } from 'colyseus.js';
 import { BehaviorSubject } from 'rxjs';
-import { Client, Room } from 'colyseus.js';
 import { Card } from '../models/card.model';
 
-interface GameState {
-  playerHand: Card[];
-  opponentHand: Card[];
-  lastPlayedCard?: Card;
-  gameStarted: boolean;
-  isPlayerTurn: boolean;
-  deckSize: number;
-  canDraw: boolean;
-  trumpSuit?: string;
+export interface Player {
+  id: string;
+  index: number;
+  partnerId: string;
+  isHuman: boolean;
+  tricksWon: number;
+  tricksClaimed: number;
+  hand: Card[];
+  tricksWonCards: Card[];
+  playedCards: Card[];
+}
+
+export interface GameState {
+  trumpSuit: string;
+  players: Map<string, Player>;
+  currentTrickCards: Card[];
+  currentPlayerIndex: number;
+  gamePhase: string;
+  claimWinnerId: string;
+  highestClaim: number;
+  consecutivePasses: number;
 }
 
 @Injectable({
@@ -19,14 +31,17 @@ interface GameState {
 })
 export class GameService {
   private client: Client;
-  private room?: Room;
+  private room: any;
+
   private gameStateSubject = new BehaviorSubject<GameState>({
-    playerHand: [],
-    opponentHand: [],
-    gameStarted: false,
-    isPlayerTurn: false,
-    deckSize: 52,
-    canDraw: false
+    trumpSuit: "",
+    players: new Map(),
+    currentTrickCards: [],
+    currentPlayerIndex: 0,
+    gamePhase: "waiting",
+    claimWinnerId: "",
+    highestClaim: 0,
+    consecutivePasses: 0
   });
 
   gameState$ = this.gameStateSubject.asObservable();
@@ -38,10 +53,12 @@ export class GameService {
   async startGame() {
     try {
       this.room = await this.client.joinOrCreate('game_room');
-      
+
       // Listen to state changes
-      this.room.onStateChange((state) => {
+      this.room.onStateChange((state: any) => {
+        console.log('Raw server state:', state);
         const gameState = this.mapStateToGameState(state);
+        console.log('Mapped game state:', gameState);
         this.gameStateSubject.next(gameState);
       });
     } catch (error) {
@@ -51,41 +68,57 @@ export class GameService {
 
   playCard(card: Card) {
     if (this.room) {
-      this.room.send('playCard', card);
+      this.room.send('playCard', {
+        suit: card.suit,
+        power: card.power
+      });
     }
   }
 
-  drawCard() {
+  claimTricks(claim: number) {
     if (this.room) {
-      this.room.send('drawCard');
+      this.room.send('claimTricks', { claim });
     }
   }
 
-  endTurn() {
+  selectTrump(suit: string) {
     if (this.room) {
-      this.room.send('endTurn');
+      this.room.send('selectTrump', { suit });
     }
   }
 
-  claimTricks(tricks: number) {
-    if (this.room) {
-      this.room.send('claimTricks', { tricks });
-    }
+  getCurrentPlayerId(): string {
+    return this.room?.sessionId || '';
   }
 
   private mapStateToGameState(serverState: any): GameState {
-    // Map server state to client game state
-    const playerId = this.room?.sessionId;
-    const player = serverState.players.get(playerId);
-    
+    const players = new Map<string, Player>();
+
+    // Convert server's MapSchema to regular Map
+    serverState.players.forEach((player: any, key: string) => {
+      console.log(player);
+      players.set(key, {
+        id: player.id,
+        index: player.index,
+        partnerId: player.partnerId,
+        isHuman: player.isHuman,
+        tricksWon: player.tricksWon,
+        tricksClaimed: player.tricksClaimed,
+        hand: Array.from(player.hand || []),
+        tricksWonCards: Array.from(player.tricksWonCards || []),
+        playedCards: Array.from(player.playedCards || [])
+      });
+    });
+
     return {
-      playerHand: player?.hand || [],
-      opponentHand: [], // We don't show opponent's cards
-      gameStarted: serverState.gamePhase !== 'waiting',
-      isPlayerTurn: serverState.currentTurn === playerId,
-      deckSize: 52 - (serverState.revealedCards?.length || 0),
-      canDraw: false,
-      trumpSuit: serverState.trumpSuit
+      trumpSuit: serverState.trumpSuit,
+      players: players,
+      currentTrickCards: Array.from(serverState.currentTrickCards || []),
+      currentPlayerIndex: serverState.currentPlayerIndex,
+      gamePhase: serverState.gamePhase,
+      claimWinnerId: serverState.claimWinnerId,
+      highestClaim: serverState.highestClaim,
+      consecutivePasses: serverState.consecutivePasses
     };
   }
 }

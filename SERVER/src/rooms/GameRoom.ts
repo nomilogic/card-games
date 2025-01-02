@@ -66,15 +66,16 @@ export class GameRoom extends Room<GameState> {
     }
 
     onJoin(client: Client) {
-        //const playerIndex = this.clients.length - 1;
+        // Prevent joining if game has already started
+        if (this.state.gamePhase !== "waiting") {
+            throw new Error("Game has already started");
+        }
 
         const player = new SchemaPlayer(
             client.sessionId,
             "",
             true,
-
             this.game.players.length
-
         );
         this.state.players.set(client.sessionId, player);
         const playerId = client.sessionId;
@@ -86,40 +87,38 @@ export class GameRoom extends Room<GameState> {
             this.assignPlayerPartners();
             this.state.gamePhase = "initialized";
             this.game.startGame();
+            // Lock the room when game starts
+            this.lock();
         } else {
             this.startJoinTimer();
         }
-
-        // Update the game's player to be human
-        //this.game.players[playerIndex].isHuman = true;
-
-        // if (this.clients.length === 4) {
-        //     this.game.startGame();
-        // }
     }
     assignPlayerPartners() {
         for (let i = 0; i < this.game.players.length; i++) {
             this.game.players[i].partnerId = this.game.players[(i + 1) % this.game.players.length].id;
         }
     }
-    private startJoinTimer() {
+    private async startJoinTimer() {
         if (this.timer) {
             clearTimeout(this.timer);
         }
 
-        this.timer = setTimeout(() => {
+        this.timer = setTimeout(async () => {
             if (this.game.players.length >= 1) {
                 // Fill remaining slots with AI players
                 while (this.game.players.length < 4) {
+                    const aiClient = new AIClient(`ai_${this.game.players.length}`);
                     const aiId = `ai_${this.game.players.length}`;
                     const aiPlayer = new SchemaPlayer(aiId, "AI", false, this.game.players.length);
                     this.state.players.set(aiId, aiPlayer);
                     this.game.addPlayer(aiId, "AI", false, this.game.players.length);
                 }
+                this.assignPlayerPartners();
                 this.state.gamePhase = "initialized";
                 this.game.startGame();
+                // Lock the room when game starts with AI players
+                this.lock();
                 this.syncGameState();
-                //this.startGame();
             }
         }, this.joinTimeout * 1000);
     }
@@ -140,32 +139,48 @@ export class GameRoom extends Room<GameState> {
             if (sessionId) {
                 const schemaPlayer = this.state.players.get(sessionId);
                 if (schemaPlayer) {
-                    // Sync hand
+                    // Clear existing hand
                     schemaPlayer.hand.clear();
+
+                    // Only show cards to the player they belong to
                     gamePlayer.hand.forEach(card => {
+                        // Convert to schema card with all properties
                         let schemacard = this.convertToSchemaCard(card);
                         schemacard.isPlayed = card.isPlayed;
                         schemacard.belongsTo = card.belongsTo;
-                        schemaPlayer.hand.push(this.convertToSchemaCard(card));
+
+                        // Only add card details if it belongs to this player
+                        if (card.belongsTo === sessionId) {
+                            schemaPlayer.hand.push(schemacard);
+                        } else {
+                            // For other players' cards, add a hidden card
+                            schemaPlayer.hand.push(new SchemaCard("hidden", "hidden", 0, "🂠"));
+                        }
                     });
 
-                    // Sync tricks won
+                    // Sync tricks won and claimed
                     schemaPlayer.tricksWon = gamePlayer.tricksWon;
                     schemaPlayer.tricksClaimed = gamePlayer.tricksClaimed;
 
-                    // Sync played cards
+                    // Sync played cards - these are visible to all
                     schemaPlayer.playedCards.clear();
                     gamePlayer.playedCards.forEach(card => {
-                        schemaPlayer.playedCards.push(this.convertToSchemaCard(card));
+                        let schemacard = this.convertToSchemaCard(card);
+                        schemacard.isPlayed = card.isPlayed;
+                        schemacard.belongsTo = card.belongsTo;
+                        schemaPlayer.playedCards.push(schemacard);
                     });
                 }
             }
         });
 
-        // Sync current trick
+        // Sync current trick - these cards are visible to all
         this.state.currentTrickCards.clear();
         this.game.trick.cards.forEach(card => {
-            this.state.currentTrickCards.push(this.convertToSchemaCard(card));
+            let schemacard = this.convertToSchemaCard(card);
+            schemacard.isPlayed = card.isPlayed;
+            schemacard.belongsTo = card.belongsTo;
+            this.state.currentTrickCards.push(schemacard);
         });
 
         // Sync game state
@@ -179,7 +194,7 @@ export class GameRoom extends Room<GameState> {
             gameCard.suit,
             gameCard.rank,
             gameCard.power,
-            gameCard.symbol
+            gameCard.symbol,
         );
     }
 
@@ -187,8 +202,8 @@ export class GameRoom extends Room<GameState> {
         return this.state.players.get(sessionId)?.index || 0
     };
 
-
 }
+
 class AIClient implements Partial<Client> {
     sessionId: string;
 

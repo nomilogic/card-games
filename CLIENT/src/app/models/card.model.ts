@@ -1,6 +1,10 @@
 export interface Card {
   suit: string;
-  value: string;
+  rank: string;
   isRed: boolean;
   id: string;
+  symbol: string;
+  power: number;
+  belongsTo: string;
+  isPlayed: boolean;
 }

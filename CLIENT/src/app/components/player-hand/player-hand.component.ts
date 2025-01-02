@@ -20,6 +20,8 @@ import { Card } from '../../models/card.model';
       justify-content: center;
       gap: 10px;
       padding: 20px;
+      width: 100%;
+      flex-wrap: wrap;
     }
   `]
 })
