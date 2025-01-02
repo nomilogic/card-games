@@ -49,7 +49,7 @@ class Deck {
     CardSymbol.Hearts,
     CardSymbol.Diamonds,
     CardSymbol.Clubs,
-    CardSymbol.Spades,
+    CardSymbol.Spades
   ];
   ranks: { [key: string]: number } = {
     '2': 0,
