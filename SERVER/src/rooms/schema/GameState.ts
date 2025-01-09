@@ -56,6 +56,13 @@ export class GameState extends Schema {
     @type("string") claimWinnerId: string;
     @type("number") highestClaim: number;
     @type("number") consecutivePasses: number;
+    @type("number") roundNumber: number;
+    @type("boolean") isGameOver: boolean;
+    @type("string") winningTeam: string;
+    @type("number") team1Score: number;
+    @type("number") team2Score: number;
+    @type("string") lastAction: string;
+    @type("number") turnTimeLeft: number;
 
     constructor() {
         super();
@@ -65,5 +72,12 @@ export class GameState extends Schema {
         this.claimWinnerId = "";
         this.highestClaim = 0;
         this.consecutivePasses = 0;
+        this.roundNumber = 1;
+        this.isGameOver = false;
+        this.winningTeam = "";
+        this.team1Score = 0;
+        this.team2Score = 0;
+        this.lastAction = "";
+        this.turnTimeLeft = 30;
     }
 }
